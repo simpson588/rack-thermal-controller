@@ -93,78 +93,70 @@ flowchart TB
     classDef kernel fill:#0F172A,stroke:#64748B,stroke-width:2px,color:#F1F5F9,rx:6px,ry:6px;
     classDef mcu fill:#4C1D95,stroke:#C084FC,stroke-width:2px,color:#FAF5FF,rx:6px,ry:6px;
     classDef hw fill:#134E4A,stroke:#2DD4BF,stroke-width:2px,color:#F0FDFA,rx:6px,ry:6px;
-    classDef subg fill:#0F172A,stroke:#334155,stroke-width:1.5px,color:#94A3B8,stroke-dasharray: 4 4;
 
 %% ===== 頂層：雲端中控 =====
-    subgraph Central ["  ☁️ 雲端 / 中控管理伺服器 (Central Management Server)  "]
-        BROKER[("📡 MQTT Broker (EMQX / Mosquitto)\nTopic: rack/thermal/#")]
-        DASH["📊 Web Dashboard 監控面板 / SEL 事件日誌"]
-        BROKER <---> DASH
+    subgraph Central ["☁️ 雲端 / 中控管理伺服器"]
+        BROKER[("📡 MQTT Broker<br>EMQX / Mosquitto<br>Topic: rack/thermal/#")]
+        DASH["📊 Web Dashboard 監控面板<br>SEL 事件日誌"]
+        BROKER <--> DASH
     end
 
-%% ===== 中層：邊緣運算 (RPi5) 與安全微控制器 (Pico W) =====
-    subgraph EdgeSystem ["  🖥️ 邊緣熱管理與即時安全雙晶片系統  "]
+%% ===== 中層：邊緣主機與安全模組 =====
+    subgraph EdgeSystem ["🖥️ 邊緣熱管理與即時安全雙晶片系統"]
         
-        subgraph Host_RPi5 ["  🟢 主運算單元：Raspberry Pi 5 (Edge Linux Host)  "]
-            subgraph User_Space ["【應用層】User Space"]
-                DAEMON["⚙️ fan_daemon 守護行程\n- MAX Policy 雙溫調速演算法\n- TACH 風扇卡死檢測 (FAN_STALL)\n- 斷線黑盒子快照與復網批次回放"]
+        subgraph Host_RPi5 ["🟢 主運算單元：Raspberry Pi 5 (Edge Linux Host)"]
+            subgraph User_Space ["應用層 (User Space)"]
+                DAEMON["⚙️ fan_daemon 守護行程<br>• MAX Policy 雙溫調速演算法<br>• TACH 風扇卡死檢測 (FAN_STALL)<br>• 斷線黑盒子快照與復網批次回放"]
             end
 
-            subgraph Kernel_Space ["【核心層】Linux Kernel (BCM2712 / rpi-6.6+)"]
-                DRV_AHT10["📄 aht10.ko 自製驅動\n/dev/aht10 (定點整數除法)"]
-                DRV_MTD["💾 Linux MTD 框架\n/dev/mtd0 (7MB 黑盒子日誌)"]
-                DRV_HWMON["🌀 hwmon / Thermal 框架\npwm1 (風扇調速) / fan1_input (轉速)"]
+            subgraph Kernel_Space ["核心層 (Linux Kernel 6.6+)"]
+                DRV_AHT10["📄 aht10.ko 自製驅動<br>/dev/aht10 (定點除法)"]
+                DRV_MTD["💾 Linux MTD 框架<br>/dev/mtd0 (7MB 黑盒子)"]
+                DRV_HWMON["🌀 hwmon / Thermal 框架<br>pwm1 / fan1_input"]
             end
         end
 
-        subgraph Sub_Pico ["  🟣 即時安全模組：Raspberry Pi Pico (RP2040)  "]
-            PICO_FW["🛡️ Pico 韌體 (main.c)\n- 專屬 UART 命令解析器\n- 5 秒連線超時看門狗 (Watchdog)\n- 通電開機自我檢測 (POST)"]
-            PICO_PIO["⚡ ws2812.pio (硬體狀態機)\n- RP2040 PIO 專屬奈秒時序\n- 800kHz NZR 訊號 (不受 CPU 排程干擾)"]
-            PICO_FW -->|輸出燈效資料| PICO_PIO
+        subgraph Sub_Pico ["🟣 即時安全模組：Raspberry Pi Pico (RP2040)"]
+            PICO_FW["🛡️ Pico 韌體 (main.c)<br>• 專屬 UART 命令解析器<br>• 5s 連線超時看門狗<br>• 通電開機自檢 (POST)"]
+            PICO_PIO["⚡ ws2812.pio (狀態機)<br>• RP2040 PIO 奈秒時序<br>• 800kHz NZR 硬體驅動"]
+            PICO_FW -->|"傳送燈效資料"| PICO_PIO
         end
 
     end
 
-%% ===== 底層：實體周邊設備 =====
-    subgraph Hardware ["  🔌 實體周邊硬體設備 (Hardware Peripherals)  "]
-        HW_AHT10["🌡️ AHT10 溫濕度感測器\n(環境溫濕度量測)"]
-        HW_W25Q64["💾 Winbond W25Q64\n(8MB SPI NOR Flash)"]
-        HW_FAN["🌀 4-Pin 工業級風扇\n(5V PWM 調速 / TACH 回授)"]
+%% ===== 底層：實體周邊硬體 =====
+    subgraph Hardware ["🔌 實體周邊硬體設備 (Hardware)"]
+        HW_AHT10["🌡️ AHT10 溫濕度感測器<br>(環境溫濕度量測)"]
+        HW_W25Q64["💾 Winbond W25Q64<br>(8MB SPI NOR Flash)"]
+        HW_FAN["🌀 4-Pin 散熱風扇<br>(5V PWM 調速 / TACH 回授)"]
         
-        HW_LED["🚦 三色狀態指示燈\n(紅 / 黃 / 綠 5mm LED)"]
-        HW_BUZZER["🔔 有源蜂鳴器模組\n(超溫 / 卡死異常狂響)"]
-        HW_STRIP["🌈 WS2812B 8-Pixel 燈條\n(多段轉速動態燈條)"]
+        HW_LED["🚦 三色狀態指示燈<br>(紅 / 黃 / 綠 5mm LED)"]
+        HW_BUZZER["🔔 有源蜂鳴器模組<br>(超溫 / 卡死聲響警報)"]
+        HW_STRIP["🌈 WS2812B 8-LED 燈條<br>(轉速狀態動態指示)"]
     end
 
-%% ===== 垂直與水平對齊之資料流 (乾淨無交錯) =====
-    %% 雲端 <--> 應用層
-    BROKER <== "MQTT QoS 1 / JSON 遙測與控制" ==> DAEMON
+%% ===== 垂直與水平對齊之資料流 =====
+    BROKER <-->|"MQTT QoS 1 / JSON 遙測與控制"| DAEMON
+    DAEMON <-->|"實體 UART 115200 (S:pwm,temp / A:0/1)"| PICO_FW
 
-    %% 應用層 <--> Pico 雙晶片通訊
-    DAEMON <== "實體 UART (115200-8N1)\n同步指令 'S:pwm,temp' / 告警 'A:0/1'" ==> PICO_FW
+    DRV_AHT10 -.->|"read /dev/aht10"| DAEMON
+    DAEMON <-->|"ioctl MEMERASE / write"| DRV_MTD
+    DAEMON <-->|"sysfs 讀寫控制"| DRV_HWMON
 
-    %% 應用層 <--> 核心層
-    DRV_AHT10 -.->|read 字元節點| DAEMON
-    DAEMON <--->|ioctl MEMERASE / write| DRV_MTD
-    DAEMON <--->|sysfs 讀寫控制| DRV_HWMON
+    HW_AHT10 -->|"I2C1 匯流排 (GPIO2/3)"| DRV_AHT10
+    DRV_MTD <-->|"SPI0 匯流排 (10MHz)"| HW_W25Q64
+    DRV_HWMON <-->|"PWM 輸出 & TACH 回授"| HW_FAN
 
-    %% 核心層 <--> 樹莓派硬體
-    HW_AHT10 ==>|I2C1 (GPIO2/3)| DRV_AHT10
-    DRV_MTD <==|SPI0 (10MHz 匯流排)| HW_W25Q64
-    DRV_HWMON <==|PWM 輸出 & TACH 回授| HW_FAN
+    PICO_FW -->|"GPIO 13/14/15"| HW_LED
+    PICO_FW -->|"GPIO 20"| HW_BUZZER
+    PICO_PIO -->|"GPIO 22 (PIO 單線時序)"| HW_STRIP
 
-    %% Pico <--> 告警硬體
-    PICO_FW -->|GPIO 13/14/15| HW_LED
-    PICO_FW -->|GPIO 20| HW_BUZZER
-    PICO_PIO ==>|GPIO 22 (單線時序)| HW_STRIP
-
-%% ===== 套用類別樣式 =====
+%% ===== 樣式綁定 =====
     class BROKER,DASH central;
     class DAEMON app;
     class DRV_AHT10,DRV_MTD,DRV_HWMON kernel;
     class PICO_FW,PICO_PIO mcu;
     class HW_AHT10,HW_W25Q64,HW_FAN,HW_LED,HW_BUZZER,HW_STRIP hw;
-    class Central,EdgeSystem,Host_RPi5,Kernel_Space,User_Space,Sub_Pico,Hardware subg;
 ```
 
 ---
