@@ -1,0 +1,51 @@
+# ==========================================
+# Linux Kernel Module Build Artifacts
+# ==========================================
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.order
+*.symvers
+.tmp_versions/
+.*.cmd
+.cache.mk
+*.ko.cmd
+*.o.cmd
+
+# ==========================================
+# Device Tree Artifacts
+# ==========================================
+*.dtbo
+
+# ==========================================
+# Daemon Executables & Local Config
+# ==========================================
+daemon/fan_daemon
+daemon/mqtt_config.txt
+mqtt_config.txt
+
+# ==========================================
+# Raspberry Pi Pico (CMake & SDK Build Artifacts)
+# ==========================================
+build/
+firmware_pico/build/
+*.elf
+*.bin
+*.hex
+*.uf2
+*.map
+*.dis
+ws2812.pio.h
+firmware_pico/ws2812.pio.h
+
+# ==========================================
+# Editor & OS Artifacts
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

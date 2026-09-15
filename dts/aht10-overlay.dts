@@ -1,0 +1,37 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";	/* Raspberry Pi 5 SoC */
+
+	fragment@0 {
+		/*
+		 * Pi 5 的 I2C1 (物理接腳 GPIO2/GPIO3, 對應 pin 3/5)
+		 * 若你接在其他 I2C bus (例如 i2c0 / i2c3...),把 &i2c1 改掉即可
+		 */
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			aht10: aht10@38 {
+				compatible = "topsoft,aht10";
+				reg = <0x38>;		/* AHT10 固定 7-bit I2C 位址 */
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&i2c1>;
+		__overlay__ {
+			/* 確保 Pi 5 的 I2C1 pinctrl 有被啟用 */
+			pinctrl-names = "default";
+		};
+	};
+
+	__overrides__ {
+		addr = <&aht10>, "reg:0";
+	};
+};

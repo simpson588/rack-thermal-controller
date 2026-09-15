@@ -1,0 +1,4 @@
+# MQTT Broker IP Address or Hostname
+# Copy this file to mqtt_config.txt and adjust to your broker IP:
+# e.g., cp mqtt_config.txt.example mqtt_config.txt
+192.168.1.100
