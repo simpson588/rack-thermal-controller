@@ -24,7 +24,7 @@
 
 - [一、 實機展示與 Demo 影片 (Live Demo)](#一-實機展示與-demo-影片-live-demo)
 - [二、 專案技術簡報 (Presentation Slides)](#二-專案技術簡報-presentation-slides)
-- [三、 系統架構圖](#三-系統架構圖)
+- [三、 系統架構與工作流程圖](#三-系統架構與工作流程圖)
 - [四、 核心工程亮點與技術實現](#四-核心工程亮點與技術實現)
   - [1. Linux Kernel I2C 驅動模組與設備樹](#1-linux-kernel-i2c-驅動模組與設備樹)
   - [2. MTD 原始設備斷線黑盒子儲存與重放 (Store-and-Forward)](#2-mtd-原始設備斷線黑盒子儲存與重放-store-and-forward)
@@ -66,9 +66,15 @@
 
 ---
 
-## 三、 系統架構圖
+## 三、 系統架構與工作流程圖
 
+### 1. 硬體拓撲與分層系統架構圖 (System Architecture)
 本系統採用分層解耦的異質架構，將「重度運算與網路傳輸」交給 Linux 主機，而將「硬體時序控制與安全告警」下放給即時微控制器：
+
+![系統架構圖](docs/images/system_architecture.png)
+
+<details>
+<summary><b>點此展開查看 Mermaid 邏輯架構圖 (Textual Logic Graph)</b></summary>
 
 ```mermaid
 graph TB
@@ -109,6 +115,14 @@ graph TB
     class AHT10_DRV,MTD_DRV kernel;
     class PICO_MAIN,PIO_WS2812 mcu;
 ```
+</details>
+
+---
+
+### 2. 跨層協同工作流程圖 (End-to-End Workflow)
+系統完整涵蓋硬體層、MCU 韌體、核心空間自製驅動、使用者空間守護行程至遠端中控伺服器的縱向資料流與控制流：
+
+![跨層工作流程圖](docs/images/workflow.png)
 
 ---
 
@@ -182,8 +196,11 @@ graph TB
 ├── .gitignore                    # Git 忽略中間編譯產物
 ├── LICENSE                       # GNU GPL v2.0 授權條款
 ├── README.md                     # 專案詳細架構與操作文件
-├── docs/                         # 專案文件與展示簡報
-│   └── 專題簡報-機櫃溫度環控模組.pdf # 完整專案架構、Kernel優化與儀器驗證簡報
+├── docs/                         # 專案文件、架構圖表與展示簡報
+│   ├── 專題簡報-機櫃溫度環控模組.pdf # 完整專案架構、Kernel優化與儀器驗證簡報
+│   └── images/                   # 高解析度架構圖與工作流程圖
+│       ├── system_architecture.png
+│       └── workflow.png
 ├── dts/                          # 設備樹原始碼與編譯檔
 │   ├── aht10-overlay.dts         # AHT10 I2C 設備樹覆蓋層
 │   ├── w25q64-overlay.dts        # W25Q64 SPI-NOR MTD 設備樹覆蓋層
