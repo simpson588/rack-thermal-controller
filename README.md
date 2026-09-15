@@ -1,4 +1,4 @@
-# 專題-機櫃溫度環控模組 (Edge Thermal & MTD Blackbox)
+# 機櫃溫度環控模組 (Edge Thermal & MTD Blackbox)
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%205%20%7C%20RP2040-red.svg)](https://www.raspberrypi.com/)
