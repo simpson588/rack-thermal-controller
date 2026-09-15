@@ -68,10 +68,54 @@
 
 ## 三、 系統架構與工作流程圖
 
-### 1. 實體硬體拓撲圖 (Hardware Topology)
+### 1. 硬體拓撲與分層系統架構圖 (System Architecture)
 本系統採用分層解耦的異質架構，將「重度運算與網路傳輸」交給 Linux 主機，而將「硬體時序控制與安全告警」下放給即時微控制器：
 
 ![系統架構圖](docs/images/system_architecture.png)
+
+<details>
+<summary><b>點此展開查看 Mermaid 邏輯架構圖 (Textual Logic Graph)</b></summary>
+
+```mermaid
+graph TB
+    subgraph Edge_Node ["Raspberry Pi 5 (Edge Linux Host)"]
+        subgraph Kernel_Space ["Linux Kernel Space (Linux 6.6+)"]
+            AHT10_DTS["aht10-overlay.dts\n(Device Tree)"] --> AHT10_DRV["aht10.ko (I2C Driver)\n- of_match_table\n- 定點整數除法 (div_u64)\n- Mutex 並行保護"]
+            W25Q_DTS["w25q64-overlay.dts"] --> MTD_DRV["Linux MTD 子系統\n(/dev/mtd0 - 7MB Blackbox)"]
+            HWMON["hwmon Sysfs (/sys/class/hwmon)\n- PWM 輸出 (pwm1)\n- TACH 回授 (fan1_input)"]
+            CPU_TEMP["Thermal Zone (/sys/class/thermal)\nCPU 溫度感測"]
+        end
+
+        subgraph User_Space ["User Space (fan_daemon)"]
+            DEV_AHT10["/dev/aht10"] -.-> DAEMON["fan_daemon\n(狀態機與動態熱控演算法)"]
+            CPU_TEMP -.-> DAEMON
+            HWMON <--> DAEMON
+            
+            DAEMON <-->|MTD ioctl / MEMERASE / write| MTD_DRV
+            DAEMON -->|UART 115200 bps\n同步指令 'S:pwm,temp'| UART_PORT["/dev/ttyUSB*"]
+        end
+    end
+
+    subgraph MCU_Subsystem ["RP2040 Pico Subsystem (Real-Time Safety)"]
+        UART_PORT ==>|UART TX/RX| PICO_MAIN["RP2040 Firmware (main.c)\n- UART 解析器\n- POST 自我檢測\n- 5s 通訊 Watchdog"]
+        PICO_MAIN -->|硬體狀態機 PIO| PIO_WS2812["ws2812.pio (RP2040 PIO)\n8-LED 轉速狀態條"]
+        PICO_MAIN -->|GPIO 控制| STATUS_LEDS["RGB 狀態指示燈 (紅/黃/綠)"]
+        PICO_MAIN -->|GPIO 輸出| BUZZER["有源蜂鳴器 (告警聲響)"]
+    end
+
+    subgraph Cloud_Network ["雲端監控與物聯網 (MQTT Broker)"]
+        DAEMON <==>|MQTT QoS 1 / TLS / JSON| BROKER[("MQTT Broker\n(EMQX / Mosquitto)")]
+        BROKER <--> WEB_DASH["遠端監控中心 / Web Dashboard"]
+    end
+
+    classDef highlight fill:#2D3748,stroke:#4A5568,stroke-width:2px,color:#FFF;
+    classDef kernel fill:#1A365D,stroke:#2B6CB0,stroke-width:2px,color:#FFF;
+    classDef mcu fill:#744210,stroke:#D69E2E,stroke-width:2px,color:#FFF;
+    class DAEMON,BROKER highlight;
+    class AHT10_DRV,MTD_DRV kernel;
+    class PICO_MAIN,PIO_WS2812 mcu;
+```
+</details>
 
 ---
 
@@ -79,85 +123,6 @@
 系統完整涵蓋硬體層、MCU 韌體、核心空間自製驅動、使用者空間守護行程至遠端中控伺服器的縱向資料流與控制流：
 
 ![跨層工作流程圖](docs/images/workflow.png)
-
----
-
-### 3. 系統軟硬體模組邏輯架構圖 (System Logic Architecture)
-以下為系統各軟體層級（User Space、Kernel Space、Pico Firmware、PIO 狀態機）與周邊硬體之詳細通訊協定與資料拓撲圖（**預設展開**）：
-
-```mermaid
-flowchart TB
-%% ===== 樣式定義 =====
-    classDef central fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC,rx:8px,ry:8px;
-    classDef app fill:#312E81,stroke:#818CF8,stroke-width:2px,color:#EEF2FF,rx:6px,ry:6px;
-    classDef kernel fill:#0F172A,stroke:#64748B,stroke-width:2px,color:#F1F5F9,rx:6px,ry:6px;
-    classDef mcu fill:#4C1D95,stroke:#C084FC,stroke-width:2px,color:#FAF5FF,rx:6px,ry:6px;
-    classDef hw fill:#134E4A,stroke:#2DD4BF,stroke-width:2px,color:#F0FDFA,rx:6px,ry:6px;
-
-%% ===== 頂層：雲端中控 =====
-    subgraph Central ["☁️ 雲端 / 中控管理伺服器"]
-        BROKER[("📡 MQTT Broker<br>EMQX / Mosquitto<br>Topic: rack/thermal/#")]
-        DASH["📊 Web Dashboard 監控面板<br>SEL 事件日誌"]
-        BROKER <--> DASH
-    end
-
-%% ===== 中層：邊緣主機與安全模組 =====
-    subgraph EdgeSystem ["🖥️ 邊緣熱管理與即時安全雙晶片系統"]
-        
-        subgraph Host_RPi5 ["🟢 主運算單元：Raspberry Pi 5 (Edge Linux Host)"]
-            subgraph User_Space ["應用層 (User Space)"]
-                DAEMON["⚙️ fan_daemon 守護行程<br>• MAX Policy 雙溫調速演算法<br>• TACH 風扇卡死檢測 (FAN_STALL)<br>• 斷線黑盒子快照與復網批次回放"]
-            end
-
-            subgraph Kernel_Space ["核心層 (Linux Kernel 6.6+)"]
-                DRV_AHT10["📄 aht10.ko 自製驅動<br>/dev/aht10 (定點除法)"]
-                DRV_MTD["💾 Linux MTD 框架<br>/dev/mtd0 (7MB 黑盒子)"]
-                DRV_HWMON["🌀 hwmon / Thermal 框架<br>pwm1 / fan1_input"]
-            end
-        end
-
-        subgraph Sub_Pico ["🟣 即時安全模組：Raspberry Pi Pico (RP2040)"]
-            PICO_FW["🛡️ Pico 韌體 (main.c)<br>• 專屬 UART 命令解析器<br>• 5s 連線超時看門狗<br>• 通電開機自檢 (POST)"]
-            PICO_PIO["⚡ ws2812.pio (狀態機)<br>• RP2040 PIO 奈秒時序<br>• 800kHz NZR 硬體驅動"]
-            PICO_FW -->|"傳送燈效資料"| PICO_PIO
-        end
-
-    end
-
-%% ===== 底層：實體周邊硬體 =====
-    subgraph Hardware ["🔌 實體周邊硬體設備 (Hardware)"]
-        HW_AHT10["🌡️ AHT10 溫濕度感測器<br>(環境溫濕度量測)"]
-        HW_W25Q64["💾 Winbond W25Q64<br>(8MB SPI NOR Flash)"]
-        HW_FAN["🌀 4-Pin 散熱風扇<br>(5V PWM 調速 / TACH 回授)"]
-        
-        HW_LED["🚦 三色狀態指示燈<br>(紅 / 黃 / 綠 5mm LED)"]
-        HW_BUZZER["🔔 有源蜂鳴器模組<br>(超溫 / 卡死聲響警報)"]
-        HW_STRIP["🌈 WS2812B 8-LED 燈條<br>(轉速狀態動態指示)"]
-    end
-
-%% ===== 垂直與水平對齊之資料流 =====
-    BROKER <-->|"MQTT QoS 1 / JSON 遙測與控制"| DAEMON
-    DAEMON <-->|"實體 UART 115200 (S:pwm,temp / A:0/1)"| PICO_FW
-
-    DRV_AHT10 -.->|"read /dev/aht10"| DAEMON
-    DAEMON <-->|"ioctl MEMERASE / write"| DRV_MTD
-    DAEMON <-->|"sysfs 讀寫控制"| DRV_HWMON
-
-    HW_AHT10 -->|"I2C1 匯流排 (GPIO2/3)"| DRV_AHT10
-    DRV_MTD <-->|"SPI0 匯流排 (10MHz)"| HW_W25Q64
-    DRV_HWMON <-->|"PWM 輸出 & TACH 回授"| HW_FAN
-
-    PICO_FW -->|"GPIO 13/14/15"| HW_LED
-    PICO_FW -->|"GPIO 20"| HW_BUZZER
-    PICO_PIO -->|"GPIO 22 (PIO 單線時序)"| HW_STRIP
-
-%% ===== 樣式綁定 =====
-    class BROKER,DASH central;
-    class DAEMON app;
-    class DRV_AHT10,DRV_MTD,DRV_HWMON kernel;
-    class PICO_FW,PICO_PIO mcu;
-    class HW_AHT10,HW_W25Q64,HW_FAN,HW_LED,HW_BUZZER,HW_STRIP hw;
-```
 
 ---
 
