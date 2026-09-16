@@ -45,6 +45,8 @@ firmware_pico/ws2812.pio.h
 # ==========================================
 notes/
 *.notes.md
+求職與職缺資料/
+job_search_data/
 
 # ==========================================
 # Editor & OS Artifacts
