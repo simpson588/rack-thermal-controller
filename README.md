@@ -13,7 +13,6 @@
 本系統結合了 **Raspberry Pi 5 (Linux Kernel + User-space Daemon)** 與 **RP2040 (Real-Time PIO State Machine)**，實現了從底層 Linux 核心驅動、工業級 MTD 斷線快照重放，到微秒級硬體狀態機告警的完整垂直整合架構。
 
 > 📌 **快速導覽與實機展示**：
-> - 📚 **[核心程式碼深度解析與面試指南 (Markdown)](docs/核心程式碼深度解析與面試指南.md)**（專案架構、底層 C/Kernel 原始碼逐行解析與面試問答話術）
 > - 📄 **[點此線上預覽完整專案簡報 (PDF)](docs/專題簡報-機櫃溫度環控模組.pdf)**（涵蓋架構、Kernel 裁減數據、Root Cause 分析與邏輯分析儀波形）
 > - 🎥 **[實作硬體運作 DEMO 影片 (YouTube)](https://youtu.be/Q1XI1jcykzs)**
 > - 🌐 **[MQTT 雙向通訊連線終端機畫面 (YouTube)](https://youtu.be/MVUiem5-Jno)**
