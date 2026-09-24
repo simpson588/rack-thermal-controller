@@ -8,9 +8,9 @@
 [![Presentation](https://img.shields.io/badge/Presentation-專題簡報%20(PDF)-blue.svg?logo=adobeacrobatreader)](docs/專題簡報-機櫃溫度環控模組.pdf)
 [![Demo Videos](https://img.shields.io/badge/YouTube-實機展示影片-red.svg?logo=youtube)](https://youtu.be/Q1XI1jcykzs)
 
-一個專為伺服器機架、工業邊緣運算節點（Edge Computing Node）設計的**高可靠度異質雙晶片（Heterogeneous Dual-Core）熱管理與斷線快閃黑盒子遙測系統**。
+一個針對機架伺服器散熱情境設計的**異質雙晶片（Heterogeneous Dual-Core）溫度監控與斷線快閃黑盒子記錄系統**。
 
-本系統結合了 **Raspberry Pi 5 (Linux Kernel + User-space Daemon)** 與 **RP2040 (Real-Time PIO State Machine)**，實現了從底層 Linux 核心驅動、工業級 MTD 斷線快照重放，到微秒級硬體狀態機告警的完整垂直整合架構。
+本系統結合了 **Raspberry Pi 5 (Linux Kernel + User-space Daemon)** 與 **RP2040 (Real-Time PIO State Machine)**，實現了從底層 Linux 核心驅動、MTD 斷線快照重放，到硬體狀態機告警的軟硬體整合架構。
 
 > 📌 **快速導覽與實機展示**：
 > - 📄 **[點此線上預覽完整專案簡報 (PDF)](docs/專題簡報-機櫃溫度環控模組.pdf)**（涵蓋架構、Kernel 裁減數據、Root Cause 分析與邏輯分析儀波形）
@@ -28,7 +28,7 @@
 - [四、 核心工程亮點與技術實現](#四-核心工程亮點與技術實現)
   - [1. Linux Kernel I2C 驅動模組與設備樹](#1-linux-kernel-i2c-驅動模組與設備樹)
   - [2. MTD 原始設備斷線黑盒子儲存與重放 (Store-and-Forward)](#2-mtd-原始設備斷線黑盒子儲存與重放-store-and-forward)
-  - [3. 工業級風扇轉速回授與防堵轉保護 (Stall Detection)](#3-工業級風扇轉速回授與防堵轉保護-stall-detection)
+  - [3. 風扇轉速回授與防堵轉保護 (Stall Detection)](#3-風扇轉速回授與防堵轉保護-stall-detection)
   - [4. RP2040 PIO 精準時序控制與 Watchdog 保護](#4-rp2040-pio-精準時序控制與-watchdog-保護)
 - [五、 硬體清單與接線對照表 (Pinout)](#五-硬體清單與接線對照表-pinout)
 - [六、 專案目錄結構](#六-專案目錄結構)
@@ -134,12 +134,12 @@ graph TB
 - **重試與防併發**：透過 `mutex_lock` 保障多行程讀取設備節點時的 I2C 匯流排安全，並內建 busy bit 重試等待機制。
 
 ### 2. MTD 原始設備斷線黑盒子儲存與重放 (Store-and-Forward)
-在工業環境中，網路隨時可能因電磁干擾或路由器重啟而中斷。本專案透過外部 SPI NOR Flash 實現斷線快照黑盒子：
+在邊緣節點運作中，網路可能因連線異常或路由器重啟而中斷。本專案透過外部 SPI NOR Flash 實作斷線快照記錄機制：
 - **原始磁區對齊操作**：直接對 `/dev/mtd0` 進行底層 `ioctl(MEMERASE)` 4KB Sector 對齊抹除，並以 `O_SYNC` 模式直寫晶片。
-- **高效能二進位序列化**：自定義 16-Byte `blackbox_entry_t`（`__attribute__((packed))`），儲存 Unix Timestamp、環境溫濕度與風扇負載。
+- **二進位資料序列化**：自定義 16-Byte `blackbox_entry_t`（`__attribute__((packed))`），儲存 Unix Timestamp、環境溫濕度與風扇負載。
 - **自動批次回放 (Batch Replay)**：網路恢復上線後，守護行程以 `FLUSH_BATCH_SIZE=50` 筆為單位批次回放歷史封包至 MQTT Broker，並標註 `"replayed": true`，最後自動抹除已回放扇區重置緩衝區。
 
-### 3. 工業級風扇轉速回授與防堵轉保護 (Stall Detection)
+### 3. 風扇轉速回授與防堵轉保護 (Stall Detection)
 - **硬體雙溫控動態曲線**：綜合評估內部 CPU Die 核心溫度與外部 AHT10 機架環境進氣溫度，自動決定最合適的 PWM 轉速輸出。
 - **風扇啟動寬限期 (Spin-up Grace Period)**：針對無刷風扇啟動時慣性加速的物理特性，設計了 3 秒的 `spinup_grace` 寬限計時器，杜絕風扇剛加速時因 TACH 為 0 產生的誤告警。
 - **硬體轉速反饋防護**：連續 2 週期（2 秒）檢測到 PWM 驅動但實體轉速 RPM 為 0 時，立即判定為風扇軸承堵轉（`FAN_STALL`），通報 MQTT 並驅動次級控制器蜂鳴器報警。
