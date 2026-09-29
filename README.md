@@ -8,15 +8,15 @@
 [![Presentation](https://img.shields.io/badge/Presentation-專題簡報%20(PDF)-blue.svg?logo=adobeacrobatreader)](docs/專題簡報-機櫃溫度環控模組.pdf)
 [![Demo Videos](https://img.shields.io/badge/YouTube-實機展示影片-red.svg?logo=youtube)](https://youtu.be/Q1XI1jcykzs)
 
-一個針對機架伺服器散熱情境設計的**異質雙晶片（Heterogeneous Dual-Core）溫度監控與斷線快閃黑盒子記錄系統**。
+針對機架伺服器散熱情境設計的**異質雙晶片協同架構 (Raspberry Pi 5 + RP2040) 溫度監控與斷網 Flash 黑盒子記錄系統**。
 
-本系統結合了 **Raspberry Pi 5 (Linux Kernel + User-space Daemon)** 與 **RP2040 (Real-Time PIO State Machine)**，實現了從底層 Linux 核心驅動、MTD 斷線快照重放，到硬體狀態機告警的軟硬體整合架構。
+本系統結合 **Raspberry Pi 5 (Linux Kernel + Userspace Daemon)** 與 **RP2040 (即時 PIO 狀態機)**，整合底層 Linux 字元驅動開發、SPI-NOR Flash 斷網黑盒子暫存與重傳機制，以及微控制器硬體狀態機的即時聲光告警。
 
 > 📌 **快速導覽與實機展示**：
 > - 📄 **[點此線上預覽完整專案簡報 (PDF)](docs/專題簡報-機櫃溫度環控模組.pdf)**（涵蓋架構、Kernel 裁減數據、Root Cause 分析與邏輯分析儀波形）
 > - 🎥 **[實作硬體運作 DEMO 影片 (YouTube)](https://youtu.be/Q1XI1jcykzs)**
 > - 🌐 **[MQTT 雙向通訊連線終端機畫面 (YouTube)](https://youtu.be/MVUiem5-Jno)**
-> - 💾 **[斷線黑盒子儲存與復網回放終端機畫面 (YouTube)](https://youtu.be/BRNewQzBiq8)**
+> - 💾 **[斷網黑盒子暫存與重連補傳終端機畫面 (YouTube)](https://youtu.be/BRNewQzBiq8)**
 
 ---
 
@@ -27,9 +27,9 @@
 - [三、 系統架構與工作流程圖](#三-系統架構與工作流程圖)
 - [四、 核心工程亮點與技術實現](#四-核心工程亮點與技術實現)
   - [1. Linux Kernel I2C 驅動模組與設備樹](#1-linux-kernel-i2c-驅動模組與設備樹)
-  - [2. MTD 原始設備斷線黑盒子儲存與重放 (Store-and-Forward)](#2-mtd-原始設備斷線黑盒子儲存與重放-store-and-forward)
+  - [2. MTD 斷網黑盒子暫存與重傳機制 (Store-and-Forward)](#2-mtd-斷網黑盒子暫存與重傳機制-store-and-forward)
   - [3. 風扇轉速回授與防堵轉保護 (Stall Detection)](#3-風扇轉速回授與防堵轉保護-stall-detection)
-  - [4. RP2040 PIO 精準時序控制與 Watchdog 保護](#4-rp2040-pio-精準時序控制與-watchdog-保護)
+  - [4. RP2040 PIO 時序控制與通訊逾時保護](#4-rp2040-pio-時序控制與通訊逾時保護)
 - [五、 硬體清單與接線對照表 (Pinout)](#五-硬體清單與接線對照表-pinout)
 - [六、 專案目錄結構](#六-專案目錄結構)
 - [七、 編譯與部署指南](#七-編譯與部署指南)
@@ -44,12 +44,12 @@
 
 ## 一、 實機展示與 Demo 影片 (Live Demo)
 
-本專案提供完整之實體硬體運作與上位機雙向連線測試影片，點擊下方預覽圖即可直接於 YouTube 觀看實機動態展示：
+本專案提供實機硬體運作與雙向通訊測試影片，點擊下方預覽圖可在 YouTube 觀看展示：
 
-| 實作硬體運作 DEMO | MQTT 雙向通訊正常連線 | 斷線黑盒子寫入與復網回放 |
+| 實作硬體運作 DEMO | MQTT 雙向通訊正常連線 | 斷網黑盒子寫入與重連補傳 |
 | :---: | :---: | :---: |
 | [![實作DEMO影片](https://img.youtube.com/vi/Q1XI1jcykzs/hqdefault.jpg)](https://youtu.be/Q1XI1jcykzs) | [![MQTT正常連線](https://img.youtube.com/vi/MVUiem5-Jno/hqdefault.jpg)](https://youtu.be/MVUiem5-Jno) | [![斷線後重連黑盒子回傳](https://img.youtube.com/vi/BRNewQzBiq8/hqdefault.jpg)](https://youtu.be/BRNewQzBiq8) |
-| **[▶️ 觀看實機動態展示](https://youtu.be/Q1XI1jcykzs)**<br>涵蓋 AHT10 感測、PWM 動態調速、WS2812B 燈條與聲光告警 | **[▶️ 觀看雙向通訊畫面](https://youtu.be/MVUiem5-Jno)**<br>左：溫控 RPi5 終端機<br>右：中控台伺服器終端機 | **[▶️ 觀看黑盒子回傳畫面](https://youtu.be/BRNewQzBiq8)**<br>離線時 W25Q64 Flash 暫存<br>復聯後批次回放至 MQTT Broker |
+| **[▶️ 觀看實機動態展示](https://youtu.be/Q1XI1jcykzs)**<br>涵蓋 AHT10 感測、PWM 動態調速、WS2812B 燈條與聲光告警 | **[▶️ 觀看雙向通訊畫面](https://youtu.be/MVUiem5-Jno)**<br>左：溫控 RPi5 終端機<br>右：中控台伺服器終端機 | **[▶️ 觀看黑盒子回傳畫面](https://youtu.be/BRNewQzBiq8)**<br>離線時 W25Q64 Flash 暫存<br>網路重連後批次補傳至 MQTT Broker |
 
 ---
 
@@ -58,18 +58,18 @@
 完整專題技術簡報（PDF）已收錄於本專案目錄中：👉 **[專題簡報-機櫃溫度環控模組.pdf](docs/專題簡報-機櫃溫度環控模組.pdf)**
 
 ### 📑 簡報重點摘要
-1. **系統架構與工作流程圖**：分層解耦 Linux 主機與 RP2040 即時安全協同運作機制。
-2. **技術清單與門檻對照表**：環境溫/CPU 雙重溫度 MAX Policy 與風扇 PWM / WS2812B 燈條 / LED / 蜂鳴器聯動邏輯。
+1. **系統架構與分工**：由 Linux 主機負責核心運算與網路傳輸，RP2040 專職即時控制與聲光告警。
+2. **溫控策略與周邊聯動**：取機架進氣溫與 CPU 核心溫度的較高者（MAX Policy），動態調整風扇 PWM 轉速，並同步聯動 WS2812B 轉速燈條、狀態 LED 與蜂鳴器。
 3. **Kernel 裁減優化成果**：針對 Debian Trixie (rpi-6.18.y) 移除多餘子系統，映像檔體積縮減 18.4%，開機耗時自 2.5s 縮短至 938ms (加速 63%)。
-4. **5 大工程難題與 Root Cause 分析**：包含 SPI 降頻避開電源爬升時序不穩、Flash 抹除校驗、stdio 搶佔 UART0 中斷、newlib-nano 浮點數輕量解析、風扇慣性啟動緩衝期 (spinup_grace)。
-5. **邏輯分析儀實測驗證**：PulseView 擷取 AHT10 I2C 20-bit 溫濕度原始資料及 RP2040 PIO 800kHz NZR 奈秒時序訊號。
+4. **5 大工程問題排查 (Root Cause 分析)**：包含 Device Tree 停用 spidev 解決 SPI 片選衝突與 10MHz 降頻提高時序裕度、Flash 抹除校驗、stdio 搶佔 UART0 中斷、newlib-nano 浮點數輕量解析、風扇啟動緩衝期 (spinup_grace)。
+5. **邏輯分析儀實測驗證**：使用 PulseView 擷取 AHT10 I2C 20-bit 溫濕度封包，以及 RP2040 PIO 800kHz WS2812B 精準時序訊號。
 
 ---
 
 ## 三、 系統架構與工作流程圖
 
-### 1. 硬體架構與分工 (System Architecture)
-本系統採用異質雙晶片分工架構，將「重度運算與網路傳輸」交給 Linux 主機，而將「硬體時序控制與安全告警」下放給即時微控制器：
+### 1. 系統架構與晶片分工 (System Architecture)
+本系統採用雙晶片協同分工設計：由 Linux 主機（Raspberry Pi 5）負責執行 Userspace Daemon、感測器讀取與 MQTT 網路通訊；微控制器（RP2040）專職微秒級硬體時序控制與即時聲光告警：
 
 ![系統架構圖](docs/images/system_architecture.png)
 
@@ -87,7 +87,7 @@ graph TB
         end
 
         subgraph User_Space ["User Space (fan_daemon)"]
-            DEV_AHT10["/dev/aht10"] -.-> DAEMON["fan_daemon\n(狀態機與動態熱控演算法)"]
+            DEV_AHT10["/dev/aht10"] -.-> DAEMON["fan_daemon\n(狀態機與動態溫控邏輯)"]
             CPU_TEMP -.-> DAEMON
             HWMON <--> DAEMON
             
@@ -119,8 +119,8 @@ graph TB
 
 ---
 
-### 2. 跨層協同工作流程圖 (End-to-End Workflow)
-系統完整涵蓋硬體層、MCU 韌體、核心空間自製驅動、使用者空間守護行程至遠端中控伺服器的縱向資料流與控制流：
+### 2. 系統運作與資料流程圖 (Workflow)
+系統涵蓋底層硬體感測、Kernel 驅動、Userspace 守護進程到遠端 MQTT Broker 的資料傳輸與控制流程：
 
 ![跨層工作流程圖](docs/images/workflow.png)
 
@@ -129,25 +129,25 @@ graph TB
 ## 四、 核心工程亮點與技術實現
 
 ### 1. Linux Kernel I2C 驅動模組與設備樹
-- **核心空間規範 (Kernel Space Integrity)**：在核心驅動（`driver/aht10.c`）中嚴格禁用浮點運算，使用 64 位元定點整數除法（`div_u64`）換算溫濕度，防止污染 FPU 暫存器。
-- **Device Tree 動態匹配**：撰寫 `dts/aht10-overlay.dts`，支援透過 `topsoft,aht10` 節點觸發 I2C Probe，並自動於 `/dev/aht10` 生成字元設備節點。
-- **重試與防併發**：透過 `mutex_lock` 保障多行程讀取設備節點時的 I2C 匯流排安全，並內建 busy bit 重試等待機制。
+- **避免使用浮點運算**：在核心驅動（`driver/aht10.c`）中避免浮點數運算，改採 64 位元定點整數除法（`div_u64`）換算溫濕度數值，防止在 Kernel Space 產生浮點例外或污染 FPU 暫存器。
+- **Device Tree 節點匹配**：撰寫 `dts/aht10-overlay.dts`，以 `compatible = "topsoft,aht10"` 觸發 I2C Probe，並自動註冊 `/dev/aht10` 字元裝置節點供使用者空間讀取。
+- **並行保護與 Busy Bit 重試**：透過 `mutex_lock` 保護 I2C 傳輸流程，避免多行程同時存取裝置節點時發生衝突，並加入 Busy Bit 等待與重試判斷。
 
-### 2. MTD 原始設備斷線黑盒子儲存與重放 (Store-and-Forward)
-在邊緣節點運作中，網路可能因連線異常或路由器重啟而中斷。本專案透過外部 SPI NOR Flash 實作斷線快照記錄機制：
-- **原始磁區對齊操作**：直接對 `/dev/mtd0` 進行底層 `ioctl(MEMERASE)` 4KB Sector 對齊抹除，並以 `O_SYNC` 模式直寫晶片。
-- **二進位資料序列化**：自定義 16-Byte `blackbox_entry_t`（`__attribute__((packed))`），儲存 Unix Timestamp、環境溫濕度與風扇負載。
-- **自動批次回放 (Batch Replay)**：網路恢復上線後，守護行程以 `FLUSH_BATCH_SIZE=50` 筆為單位批次回放歷史封包至 MQTT Broker，並標註 `"replayed": true`，最後自動抹除已回放扇區重置緩衝區。
+### 2. MTD 斷網黑盒子暫存與重傳機制 (Store-and-Forward)
+當邊緣節點網路中斷時，系統會將遙測數據直接暫存至外部 SPI NOR Flash：
+- **4KB 扇區對齊抹除與直接寫入**：直接操作 Raw MTD 裝置（`/dev/mtd0`），在跨越 4KB 邊界時呼叫 `ioctl(MEMERASE)` 執行扇區抹除，並以 `O_SYNC` 模式直寫晶片，降低突發斷電遺失資料的風險。
+- **緊湊二進位格式 (Packed Struct)**：自定義 16-Byte 的 `blackbox_entry_t`（`__attribute__((packed))`），儲存時間戳記 (Unix Timestamp)、環境溫濕度與風扇轉速百分比，最大化利用 7MB Flash 空間。
+- **網路重連自動批次補傳**：連線恢復後，Daemon 以每批 50 筆（`FLUSH_BATCH_SIZE=50`）將暫存封包補傳至 MQTT Broker，並標註 `"replayed": true`，確認回傳後自動抹除已處理的扇區。
 
 ### 3. 風扇轉速回授與防堵轉保護 (Stall Detection)
-- **硬體雙溫控動態曲線**：綜合評估內部 CPU Die 核心溫度與外部 AHT10 機架環境進氣溫度，自動決定最合適的 PWM 轉速輸出。
-- **風扇啟動寬限期 (Spin-up Grace Period)**：針對無刷風扇啟動時慣性加速的物理特性，設計了 3 秒的 `spinup_grace` 寬限計時器，杜絕風扇剛加速時因 TACH 為 0 產生的誤告警。
-- **硬體轉速反饋防護**：連續 2 週期（2 秒）檢測到 PWM 驅動但實體轉速 RPM 為 0 時，立即判定為風扇軸承堵轉（`FAN_STALL`），通報 MQTT 並驅動次級控制器蜂鳴器報警。
+- **雙溫度來源動態調速**：綜合評估 CPU 核心溫度（Sysfs Thermal Zone）與 AHT10 機架進氣溫度，採 MAX Policy 取較高溫度所對應的 PWM 輸出。
+- **風扇啟動緩衝期 (Spin-up Grace Period)**：考量無刷馬達由靜止啟動時的轉動慣量，設計 3 秒的 `spinup_grace` 緩衝時間，避免風扇剛啟動因轉速尚未拉起（TACH=0）而產生誤報。
+- **風扇堵轉檢測 (Stall Detection)**：當 PWM 驅動輸出但實體轉速連續 2 秒為 0 RPM 時（已過啟動緩衝期），判定為風扇軸承堵轉（`FAN_STALL`），立即上報 MQTT 並通知 RP2040 觸發蜂鳴器告警。
 
-### 4. RP2040 PIO 精準時序控制與 Watchdog 保護
-- **硬體狀態機卸載**：WS2812B RGB LED 擁有極其嚴格的微秒級（800kHz）時脈協定。透過 RP2040 的 Programmable I/O（`ws2812.pio`），純硬體狀態機執行時序發送，完全不消耗 CPU 週期，亦不受中斷干擾。
-- **通訊超時看門狗 (Watchdog Protection)**：當上位機 Linux 主機當機或 UART 連線脫落超過 5 秒，Pico 韌體自動觸發超時保護機制，強制熄滅所有指示燈與蜂鳴器，防止警報失控長鳴。
-- **POST (Power-On Self-Test)**：通電時依序自動點亮三色 LED、掃描跑馬燈並觸發短音蜂鳴，確保周邊硬體在投入運作前功能完好。
+### 4. RP2040 PIO 時序控制與通訊逾時保護
+- **PIO 硬體狀態機驅動 LED**：WS2812B RGB LED 需要微秒級精準時序（800kHz）。透過 RP2040 的 Programmable I/O（`ws2812.pio`），由專用硬體狀態機輸出訊號，不佔用 CPU 運算資源，亦不受中斷延遲干擾。
+- **通訊逾時安全保護**：若 Linux 主機當機或 UART 連線中斷超過 5 秒，RP2040 韌體自動進入逾時保護狀態，熄滅指示燈並關閉蜂鳴器，防止警報失控長鳴。
+- **開機自我檢測 (Power-On Self-Test, POST)**：通電時依序點亮三色 LED、掃描燈條跑馬燈並觸發短音蜂鳴，確認周邊硬體正常後進入全滅待機狀態。
 
 ---
 
@@ -155,7 +155,7 @@ graph TB
 
 ### 1. 主要元件清單 (BOM)
 1. **主控制器**：Raspberry Pi 5 (4GB / 8GB)
-2. **輔助安全控制器**：Raspberry Pi Pico / Pico W (RP2040)
+2. **協同微控制器**：Raspberry Pi Pico (RP2040)
 3. **環境溫濕度感測器**：AHT10 (I2C 介面)
 4. **SPI NOR Flash**：Winbond W25Q64FV (8MB / 64M-bit)
 5. **可定址 RGB 燈條**：WS2812B 8-Pixel LED Strip
@@ -208,15 +208,15 @@ graph TB
 ├── driver/                       # Linux 核心驅動模組
 │   ├── aht10.c                   # AHT10 字元設備核心驅動
 │   └── Makefile                  # Kbuild 核心模組編譯腳本
-├── daemon/                       # 使用者空間熱管與黑盒子服務
+├── daemon/                       # 使用者空間溫控與黑盒子服務
 │   ├── fan_daemon.c              # 主守護行程 (MQTT / MTD / UART / Thermal)
 │   ├── mqtt_config.txt.example   # MQTT Broker 連線設定範本
 │   └── Makefile                  # gcc 編譯腳本 (鏈結 mosquitto, cjson, m)
-└── firmware_pico/                # RP2040 燈效告警韌體
+└── firmware_pico/                # RP2040 即時控制與告警韌體
     ├── CMakeLists.txt            # Pico C/C++ SDK CMake 建置檔
     ├── pico_sdk_import.cmake     # Pico SDK 導引檔
     ├── main.c                    # Pico 主控制邏輯與 Watchdog
-    └── ws2812.pio                # RP2040 PIO 精密狀態機彙編原始碼
+    └── ws2812.pio                # RP2040 PIO 狀態機組合語言原始碼
 ```
 
 ---
@@ -321,7 +321,7 @@ make -j4
 
 ## 八、 MQTT 通訊協定與 JSON Payload 規範
 
-系統支援全雙工遠端遙控與資料串流監控：
+系統支援遠端指令控制與即時狀態監控 (Publish / Subscribe)：
 
 ### 1. 連線心跳與在線狀態 (`rack/thermal/report-in`)
 - **QoS**: 1 (Retained: `true`)
@@ -333,7 +333,7 @@ make -j4
 
 ### 2. 即時遙測數據 (`rack/thermal/telemetry`)
 - **QoS**: 0 (即時遙測)
-- **歷史重放標籤**：若該筆資料來自 Flash 黑盒子，將附加 `"replayed": true`。
+- **歷史補傳標籤**：若該筆資料來自 Flash 黑盒子暫存，將附加 `"replayed": true`。
 ```json
 {
   "timestamp": 1726410500,

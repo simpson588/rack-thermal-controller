@@ -44,9 +44,18 @@ firmware_pico/ws2812.pio.h
 # Personal Notes & Study Guides (Local Only)
 # ==========================================
 notes/
+note/
 *.notes.md
 求職與職缺資料/
 job_search_data/
+各公司面試準備/
+專題簡報/
+手機閱讀版_HTML/
+tools/
+MASTER_GUIDE.md
+GEMINI.md
+CLUELY_INTERVIEW_CONTEXT.md
+scratch/
 
 # ==========================================
 # Editor & OS Artifacts
